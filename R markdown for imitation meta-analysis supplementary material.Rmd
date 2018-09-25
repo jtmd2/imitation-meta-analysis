@@ -1,0 +1,721 @@
+---
+title: "Supplementary materials for the imitation meta-analysis"
+author: "JD"
+date: "18 May 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# Results of the main manuscript
+
+## Results for the meta-analysis of neonatal imitation
+
+```{r preamble, echo=FALSE, include=FALSE, warning=FALSE}
+
+rm(list=ls())
+setwd("C:\\Users\\Topsy\\Downloads")
+library(metafor)
+library(rmeta)
+library(data.table)
+library(plyr)
+
+dat <- read.csv("imitation meta final.csv")
+
+## Identify variables ##
+
+dat$ID.L1 <- as.factor(dat$PaperID) # The ID for the overall paper
+dat$ID.L2 <- as.factor(dat$Study) # The ID for the independent sample (may be >1 per paper)
+dat$First.author <- as.factor(dat$Author) # First author
+dat$Year <- as.numeric(dat$Year) # Year of publication
+dat$Age <- as.numeric(dat$Age..days.)  # Average age of neonates, in days
+dat$Pres.time <- as.numeric(dat$Presentation.time) # Presentation time, in seconds
+dat$Resp.time <- as.numeric(dat$Response.time) # Response time, in seconds
+dat$Gesture <- as.factor(dat$Gesture) # Target gesture
+
+## Effect sizes ##
+dat$yi.1 <- as.numeric(dat$d) # Effect size, may be >1 per independent sample
+dat$vi.1 <- as.numeric(dat$var.d.) # Variance of the effect size
+# With Hedges' correction for small samples
+dat$J <- (1-(3/((4*(dat$N))-9)))
+dat$gi.1 <- dat$yi.1*dat$J
+
+tgt <- dat # choose dataset
+
+```
+
+## Systematic search results
+
+The final set of `r nlevels(tgt$ID.L1)` papers eligible for the meta-analysis contained  `r nlevels(tgt$ID.L2)` independent samples and `r length(tgt$yi.1)` effect sizes for all gestures.
+
+## Primary meta-analysis, all gestures
+
+```{r primary meta-analysis, echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- dat # choose dataset
+### multilevel random-effects model
+rml <- rma.mv(gi.1, vi.1, random = list(~ 1 | ID.L1, ~ 1 | ID.L2), data=tgt)
+```
+
+The multilevel meta-analysis of neonatal imitation across all gestures included a total of `r rml$k` effect sizes from `r nlevels(tgt$ID.L2)` independent groups, reported in `r nlevels(tgt$ID.L1)` studies. When all studies were combined, infants produced the target gesture more to the model than to the comparison, and this effect was statistically significant (d = `r round(rml$b, 2)`, 95% CI = `r round(rml$ci.lb, 2)` to `r round(rml$ci.ub, 2)`, p < .001). 
+
+### Forest plot
+
+```{r setup forest plot, echo=FALSE, include=FALSE, warning=FALSE}
+
+tgt <- dat # choose dataset
+
+# First get single estimate per independent sample 
+
+levels(tgt$ID.L2) # number of independent samples
+IDs <- unique(tgt$ID.L2) # list of unique IDs (identifiers for each sample)
+k <- length(IDs) # number of independent samples
+y <- c("Paper","k","estimate","se","p","N") # create an empty list with headings
+# for loop fills the list with required information for each sample
+for(i in 1:k){
+  temp <- tgt[tgt$ID.L2==IDs[i],]
+  a <- rma(gi.1, vi.1, data=temp)
+  b <- c(as.character(temp$ID.L2[1]),a$k,a$b,a$se,a$pval,as.character(temp$N[1]))
+  y <- rbind(y, b)
+}  
+
+# tidy the dataset
+colnames(y) <- as.character(unlist(y[1,])) 
+y = y[-1, ]
+
+# optional: write csv with new estimates
+# write.csv(y, "Imitation meta-analysis combined estimates.csv")
+
+# get into plotting dataframe
+z <- as.data.frame(y)
+z$Name <- revalue(z$Paper, 
+                  c("Anisfeld2001_1"="Anisfeld et al. 2001", 
+                    "Coulon2013_1"="Coulon et al. 2013 Condition 1",
+                    "Coulon2013_2"="Coulon et al. 2013 Condition 2",
+                    "Field1982_1"="Field et al. 1982",
+                    "Field1983_1"="Field et al. 1983",
+                    "Fontaine1984_1"="Fontaine 1984",
+                    "Heimann1985_1"="Heimann & Schaller 1985",
+                    "Heimann1989_1"="Heimann et al. 1989 Time 1",
+                    "Heimann1989_2"="Heimann et al. 1989 Time 2",   
+                    "Heimann1998_1"="Heimann 1998",
+                    "Kennedy2017_1"="Kennedy-Costantini 2017",
+                    "Koepke1983_1"="Koepke et al. 1983",  
+                    "Legerstee1991_1"="Legerstee 1991",
+                    "Sho0000_1"="Sho et al. unpublished",
+                    "McKenzie1983_1"="McKenzie & Over 1983",
+                    "Meltzoff1977_1"="Meltzoff & Moore 1977 Experiment 1",
+                    "Meltzoff1977_2"="Meltzoff & Moore 1977 Experiment 2",
+                    "Meltzoff1983_1"="Meltzoff & Moore 1983",
+                    "Meltzoff1989_1"="Meltzoff & Moore 1989",
+                    "Meltzoff1992_1"="Meltzoff & Moore 1992",
+                    "Meltzoff1994_1"="Meltzoff & Moore 1994",
+                    "Nagy2007_1"="Nagy et al. 2007",
+                    "Nagy2014_1"="Nagy et al. 2014 Left condition",
+                    "Nagy2014_2"="Nagy et al. 2014 Right condition",
+                    "Nagy2014_3"="Nagy et al. 2014 Both condition",
+                    "Oostenbroek2016_1"="Oostenbroek et al. 2016 1 week   old",
+                    "Oostenbroek2016_2"="Oostenbroek et al. 2016 3 weeks old",
+                    "Oostenbroek2016_3"="Oostenbroek et al. 2016 6 weeks old",
+                    "Reissland1988_1"= "Reissland 1988",
+                    "Soussignan2011_1"="Soussignan et al. 2011",
+                    "Ullstadius1998_1"="Ullstadius 1998"))
+
+z$Year <- readr::parse_number(z$Paper) # get the publication years so that samples can be ordered chronologically
+z$Year[z$Year==0000]<-2014 # unpublished study has 0000 in the study ID but data were collected in 2014
+z$estimate <- as.numeric((as.character(z$estimate)))
+z$N <- as.numeric((as.character(z$N)))
+## using variance of d derived from N instead of from the meta-analysis, which gives an answer closer to the original study for studies with lots of estimates
+z$v <- (((z$N+z$N)/(z$N*z$N))+(z$estimate^2/(2*(z$N+z$N-2))))*((z$N+z$N)/(z$N+z$N-2))
+z$J <- (1-(3/((4*(z$N))-9)))
+z$g <- z$estimate*z$J
+z$seN <- sqrt(z$v)
+z$lower <- z$g - (1.96*z$seN)
+z$upper <- z$g + (1.96*z$seN)
+```
+
+```{r forest plot, fig.height=4, fig.width=8, dev='svg', echo=FALSE, warning=FALSE, message=FALSE}
+
+z_dt <- setDT(z)
+setkey(z_dt,Year,Name)
+z <- z_dt
+z$ord <- as.numeric(row.names(z))
+
+# plot with ggplot
+require(ggplot2)
+
+fp <- ggplot(data=z, (
+             aes(x=reorder(Name,-ord),
+                 y=g,
+                 ymin=lower,
+                 ymax=upper))) +
+  geom_pointrange() + 
+  geom_hline(yintercept=rml$b, lty=2) +  # add a dotted line at x=1 after flip
+  geom_hline(yintercept=0, lty=2, col="red") +  # add a dotted line at x=1 after flip
+  coord_flip() +  # flip coordinates (puts labels on y axis)
+  xlab("Study") + ylab("Effect size (95% CI)") +
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+print(fp)
+
+```
+
+## Tongue protrusion only
+
+```{r tongue protrusion only, echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- dat # choose dataset
+subTP <- rma.mv(gi.1, vi.1, 
+                 subset = (Gesture=="Tongue protrusion"), 
+                 random = list(~ 1 | ID.L1, ~ 1 | ID.L2), data=tgt)
+subTP
+```
+
+The multilevel meta-analysis of neonatal imitation of tongue protrusion included a total of `r subTP$k` effect sizes. Neonates produced more tongue protrusions in response to a tongue protrusion model than in response to other models (d = `r round(subTP$b, 2)`, 95% CI = `r round(subTP$ci.lb, 2)` to `r round(subTP$ci.ub, 2)`, p = `r round(subTP$pval, 3)`).
+
+## Moderator Analyses
+
+### Results for Table 2
+
+```{r presentation mod, echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- dat # choose dataset
+
+Pres <- rma.mv(gi.1,vi.1,
+                 mods=Presentation.time..seconds., 
+                 random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+                 data=tgt)
+summary(Pres)
+
+Resp <- rma.mv(gi.1,vi.1,
+                 mods=Response.time..seconds., 
+                 random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+                 data=tgt)
+summary(Resp)
+
+Simul <- rma.mv(gi.1,vi.1,
+                 mods=Modelling.while.responding, 
+                 random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+                 data=tgt)
+summary(Simul)
+
+Baseline <- rma.mv(gi.1,vi.1,
+                 mods=Baseline, 
+                 random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+                 data=tgt)
+summary(Baseline)
+
+
+coef<-NULL
+coef$moderator <- c("Presentation time","Response time","Modelling while responding","Baseline or active control")
+coef$b <- c(Pres$b[2],Resp$b[2],Simul$b[2],Baseline$b[2])
+coef$se <- c(Pres$se[2],Resp$se[2],Simul$se[2],Baseline$se[2])
+coef$p <- c(Pres$pval[2],Resp$pval[2],Simul$pval[2],Baseline$pval[2])
+
+```
+
+**Table 2.** Summary of the impact of methodological variations. Analyses were meta-regressions of each variable on the effect size.
+
+```{r kable, echo=FALSE, warning=FALSE}
+library(knitr)
+#names(coef) <- c("Moderator","","","")
+coef<-as.data.frame(coef)
+kable(coef, digits=3)
+```
+
+## Publication bias
+
+```{r publication bias, echo=FALSE, include=FALSE, warning=FALSE}
+
+tgt <- dat # choose dataset
+# classical Egger test equation is a weighted linear OLS regression with standard error as a covariate
+## y = a + B*se, weighted by 1/se^2 with e ~ N(0,se^2*phi)
+# where phi is an unknown multiplicative dispersion parameter
+# This is adjusted in Moreno et al (2009) because multiplicative error term not consistent with additive error in typically used variance-weighted meta-regression
+# y = a + B*se weighted by 1/se^2 with e ~ N(0,se^2)  fixed effects
+# incorporating random effects: additive component of between-study variance tau^2
+# y = a + B*se + mu, weighted by 1/(se^2+tau^2) where mu~N(0,tau^2) and e~N(0,se^2)
+# mu and e are estimated from the data
+
+# adapted Egger test from Moreno et al 2009
+# adding levels extending the random effect model by adding the extra variance term to the weight (method 1)
+tausq1 <- rml$sigma2[1]
+tausq2 <- rml$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+
+# adding a random effects term to meta-analysis model with variance as a predictor (method 2)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+```
+
+**Egger test.** The tests revealed significant asymmetry, which is consistent with that expected from publication bias, t = `r round(segger1$coefficients[6],3)`, p = `r round(segger1$coefficients[8], 4)`. 
+
+### Funnel plot
+
+**Funnel plot 1: All estimates.** Funnel plot with all gestures from all subgroups. Points are not independent. Does not account for clustering. Effect sizes from Meltzoff & Moore (1977) are circled.
+
+``` {r funnel plot 1, echo=FALSE, warning=FALSE}
+
+tgt <- dat # choose dataset
+
+# plot with ggplot
+# modified from sakaluk.wordpress.com
+
+# identify variables for the plot
+estimate = rml$b
+se = rml$se
+tgt$se <- sqrt(tgt$vi.1)
+tgt$inv <- as.numeric(1/tgt$se)
+
+# create lines for the funnel
+se.seq=seq(0, max(tgt$se), 0.001)
+ll95 = estimate-(1.96*se.seq)
+ul95 = estimate+(1.96*se.seq)
+ll99 = estimate-(3.29*se.seq)
+ul99 = estimate+(3.29*se.seq)
+meanll95 = estimate-(1.96*se)
+meanul95 = estimate+(1.96*se)
+
+# create data frame for plot lines
+dfCI = data.frame(ll95, ul95, ll99, ul99, se.seq, estimate, meanll95, meanul95)
+
+# identify the first published study with red coloured points
+tgt$Meltzoff <- "0" 
+tgt$Meltzoff[tgt$ID.L1=="Meltzoff1977"]="1"
+tgt$Meltzoff <- as.numeric(tgt$Meltzoff)
+
+# create data frame for plot points
+yi <- tgt$yi.1
+sd <- tgt$se
+M <- tgt$Meltzoff
+newdat <- cbind.data.frame(yi,sd,M)
+newdat$M <- as.factor(newdat$M)
+sub <- newdat[newdat$M==1,]
+
+# make the plot
+fp = ggplot(aes(x = sd, y = yi), data = newdat) +
+  geom_point(aes(fill=M,shape=M), data=newdat) +
+  geom_point(aes(x = sd, y = yi), data = sub) +
+  geom_point(shape=1, size=6, data = sub) +
+  xlab('Standard Error') + ylab('Effect size')+
+  geom_line(aes(x = se.seq, y = ll95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ll99), linetype = 'dashed', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul99), linetype = 'dashed', data = dfCI) +
+  geom_segment(aes(x = min(se.seq), y = estimate, xend = max(se.seq), yend = estimate), data=dfCI) +
+  scale_x_reverse()+
+  coord_flip()+
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+
+fp
+
+````
+
+
+# Results for the supplementary material
+
+## Moderator analysis: Infant age
+```{r supplementary (infant age), echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- dat # choose dataset
+Age <- rma.mv(gi.1,vi.1,
+              mods=Age, 
+              random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+              data=tgt)
+```
+The moderator analysis included a total of `r Age$k` effect sizes. The moderator effect of age on study effect size was small and not significant (b = `r round(Age$b[2], 2)`, se = `r round(Age$se[2], 2)`, 95% CI = `r round(Age$ci.lb[2], 2)` to `r round(Age$ci.ub[2], 2)`, p = `r round(Age$pval[2], 3)`). 
+
+## Sensitivity analysis: Restricting the meta-analysis to infants under 4 weeks old
+```{r supplementary (under 4 weeks), echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- dat[dat$Age <= 28,] # choose dataset
+# meta-analysis
+wks <- rma.mv(gi.1,vi.1,
+              random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+              data=tgt)
+# publication bias
+tausq1 <- wks$sigma2[1]
+tausq2 <- wks$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+```
+The sensitivity analysis included a total of `r wks$k` effect sizes. The overall effect of imitation in infants under 4 weeks was large and significant (b = `r round(wks$b, 2)`, se = `r round(wks$se, 2)`, 95% CI = `r round(wks$ci.lb, 2)` to `r round(wks$ci.ub, 2)`, p = `r round(wks$pval, 3)`). The publication bias result was similar to the overall meta-analysis (t = `r round(segger1$coefficients[6],3)`, p = `r round(segger1$coefficients[8], 4)`).
+
+## Sensitivity analysis: Meta-analysis with a single estimate per independent sample
+```{r supplementary (one estimate per sample), echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- z # choose dataset
+# meta-analysis
+rmz <- rma(estimate,sei=seN,
+            data=z)
+# publication bias
+tgt$vi <- tgt$v
+egger1 <- lm(tgt$estimate ~ tgt$vi, weights=1/(tgt$vi))
+segger1 <- summary(egger1)
+egger2 = regtest(rmz, model="lm", predictor="sei")
+segger2 <- summary(egger2)
+```
+The sensitivity analysis included a total of `r rmz$k` effect sizes. The overall effect of imitation with a single effect estimate per independent sample was large and significant (d = `r round(rmz$b, 2)`, se = `r round(rmz$se, 2)`, 95% CI = `r round(rmz$ci.lb, 2)` to `r round(rmz$ci.ub, 2)`, p = `r round(rmz$pval, 3)`). The publication bias result was similar to the overall meta-analysis (t = `r round(segger1$coefficients[6],3)`, p = `r round(segger1$coefficients[8], 4)`).
+
+## Tongue protrusion only
+```{r supplementary (tongue protrusion), echo=FALSE, include=FALSE, warning=FALSE}
+TP <- dat[dat$Gesture=="Tongue protrusion",]
+tgt <- TP # choose dataset
+# meta-analysis
+rmTP <- rma.mv(gi.1,vi.1,
+              random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+              data=TP)
+# publication bias
+tausq1 <- rmTP$sigma2[1]
+tausq2 <- rmTP$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+```
+The sensitivity analysis included a total of `r rmTP$k` effect sizes. The overall effect of imitation measured using only tongue protrusion was large and significant (d = `r round(rmTP$b, 2)`, se = `r round(rmTP$se, 2)`, 95% CI = `r round(rmTP$ci.lb, 2)` to `r round(rmTP$ci.ub, 2)`, p = `r round(rmTP$pval, 3)`). The publication bias result was similar to the overall meta-analysis (t = `r round(segger1$coefficients[6],3)`, p = `r round(segger1$coefficients[8], 4)`).
+
+### Tongue protrusion with baseline comparison only
+```{r supplementary (tongue protrusion compared to baseline), echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- TP[TP$Baseline==1,] # choose dataset
+# meta-analysis
+rmTPB <- rma.mv(gi.1,vi.1,
+              random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+              data=tgt)
+# publication bias
+tausq1 <- rmTPB$sigma2[1]
+tausq2 <- rmTPB$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+```
+The sensitivity analysis included a total of `r rmTPB$k` effect sizes. The overall effect of imitation measured using only tongue protrusion compared to baseline was large and significant (d = `r round(rmTPB$b, 2)`, se = `r round(rmTPB$se, 2)`, 95% CI = `r round(rmTPB$ci.lb, 2)` to `r round(rmTPB$ci.ub, 2)`, p = `r round(rmTPB$pval, 3)`). The publication bias result was not significant, in contrast to the overall meta-analysis (t = `r round(segger1$coefficients[6],3)`, p = `r round(segger1$coefficients[8], 4)`).
+
+### Tongue protrusion with active comparison (mouth opening) only
+```{r supplementary (tongue protrusion compared to active control), echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- TP[TP$Baseline==0,] # choose dataset
+# meta-analysis
+rmTPA <- rma.mv(gi.1,vi.1,
+              random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+              data=tgt)
+# publication bias
+tausq1 <- rmTPA$sigma2[1]
+tausq2 <- rmTPA$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+```
+The sensitivity analysis included a total of `r rmTPA$k` effect sizes. The overall effect of imitation measured using only tongue protrusion compared to mouth opening was large and significant (d = `r round(rmTPA$b, 2)`, se = `r round(rmTPA$se, 2)`, 95% CI = `r round(rmTPA$ci.lb, 2)` to `r round(rmTPA$ci.ub, 2)`, p = `r round(rmTPA$pval, 3)`). The publication bias result was similar to the overall meta-analysis (t = `r round(segger1$coefficients[6],3)`, p = `r round(segger1$coefficients[8], 4)`).
+
+## Moderator analysis: Facial and non-facial gestures
+```{r supplementary (facial and non-facial gestures), echo=FALSE, include=FALSE, warning=FALSE}
+
+tgt <- dat # choose dataset
+# recode all gestures to a new variable facial or non-facial gestures
+tgt$face <- revalue(tgt$Gesture, 
+                 c("Arm raising"="0", 
+                   "Cheek swelling"="0",
+                   "CLICK sound"="1",
+                   "EEE sound"="1",
+                   "Eye closing"="1",
+                   "Finger movement"="0",
+                   "Finger movement partial"="0",
+                   "Finger protrusion"="0",
+                   "Grasping"="0",
+                   "Hand movement"="0",
+                   "Hand opening"="0",
+                   "Hand to mouth"="0",
+                   "Happy expression (wide lips)"="1",
+                   "Happy face"="1",
+                   "Head movement"="0",
+                   "Index finger point"="0",
+                   "Lip protrusion"="1",
+                   "Lip spreading"="1",
+                   "MMM sound"="1",
+                   "Mouth opening"="1",
+                   "Partial mouth opening"="1",
+                   "Partial tongue protrusion"="1",
+                   "Pursed lips"="1",
+                   "Sad expression (pouting lips)"="1",
+                   "Sad expression (furrowed brow)"="1",
+                   "Sad face"="1",
+                   "Sequential finger movement"="0",
+                   "Surprised expression (wide open mouth)"="1",
+                   "Surprised expression (widened eyes)"="1",
+                   "Tongue protrusion"="1",
+                   "Widened lips"="1"))
+tgt$face[tgt$face=="0"] <- 0
+tgt$face[tgt$face=="1"] <- 1
+tgt$face2 <- as.numeric(tgt$face)
+
+# meta-analysis
+faces <- rma.mv(gi.1, vi.1, random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+                mods=face2,
+                data=tgt)
+# publication bias
+tausq1 <- faces$sigma2[1]
+tausq2 <- faces$sigma2[2] 
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+```
+The sensitivity analysis included a total of `r faces$k` effect sizes. The overall effect of imitation measured using only tongue protrusion compared to mouth opening was large and significant (b = `r round(faces$b[2], 2)`, se = `r round(faces$se[2], 2)`, 95% CI = `r round(faces$ci.lb[2], 2)` to `r round(faces$ci.ub[2], 2)`, p = `r round(faces$pval[2], 3)`). 
+## Moderator analysis: Imputed data
+```{r supplementary (imputed data), echo=FALSE, include=FALSE, warning=FALSE}
+
+tgt <- dat # choose dataset
+# recode all gestures to a new variable facial or non-facial gestures
+tgt$imput <- revalue(tgt$ID.L1, 
+                    c("Anisfeld2001"="0",
+                      "Coulon2013"="0",
+                      "Field1982"="0",
+                      "Field1983"="0",
+                      "Fontaine1984"="0",
+                      "Heimann1985"="0",
+                      "Heimann1989"="0",
+                      "Heimann1998"="0",
+                      "Kennedy2017"="0",
+                      "Koepke1983"="1",
+                      "Legerstee1991"="1",
+                      "Sho0000"="0",
+                      "McKenzie1983"="1",
+                      "Meltzoff1977"="1",
+                      "Meltzoff1983"="1",
+                      "Meltzoff1989"="0",
+                      "Meltzoff1992"="0",
+                      "Meltzoff1994"="0",
+                      "Nagy2007"="0",
+                      "Nagy2014"="0",
+                      "Oostenbroek2016"="0",
+                      "Reissland1988"="0",
+                      "Soussignan2011"="1",
+                      "Ullstadius1998"="1"))
+
+tgt$imput <- as.numeric(tgt$imput)
+# meta-analysis
+imput <- rma.mv(gi.1, vi.1, random = list(~ 1 | ID.L1, ~ 1 | ID.L2),
+                mods=imput, 
+                data=tgt)
+# publication bias
+tausq1 <- imput$sigma2[1]
+tausq2 <- imput$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+```
+The sensitivity analysis included a total of `r imput$k` effect sizes. The overall effect of imitation measured using only tongue protrusion compared to mouth opening was large and significant (b = `r round(imput$b[2], 2)`, se = `r round(imput$se[2], 2)`, 95% CI = `r round(imput$ci.lb[2], 2)` to `r round(imput$ci.ub[2], 2)`, p = `r round(imput$pval[2], 3)`). 
+## Sensitivity to individual studies
+
+###  Leave-one-out analysis
+```{r supplementary (leave1out), echo=FALSE, include=FALSE, warning=FALSE}
+q <- leave1out(rmz)
+rml <- rma.mv(gi.1, vi.1, random = list(~ 1 | ID.L1, ~ 1 | ID.L2), data=dat)
+```
+The meta-analysis estimate excluding any single study did not significantly differ from the overall estimate (max estimate = `r round(max(q$estimate), 3)`, se = `r  round(q$se[q$estimate==max(q$estimate)], 2)`, deviance = `r round(max(q$estimate)-(rml$b),2)`, p = `r round(pt(((max(q$estimate))-(rml$b))/((q$se[q$estimate==max(q$estimate)])+(rml$se)),(length(q)-1)),3)`.
+
+### Excluding Oostenbroek et al. (2016)
+```{r supplementary (excluding Oostenbroek2016), echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- dat[dat$ID.L1 != "Oostenbroek 2016",] # choose dataset
+# meta-analysis
+rmno <- rma.mv(gi.1,vi.1,
+              random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+              data=TP)
+# publication bias
+tausq1 <- rmno$sigma2[1]
+tausq2 <- rmno$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+```
+The sensitivity analysis included a total of `r rmno$k` effect sizes. The overall effect of imitation excluding all effects reported in Oostenbroek et al. (2016) was large and significant (b = `r round(rmno$b, 2)`, se = `r round(rmno$se, 2)`, 95% CI = `r round(rmno$ci.lb, 2)` to `r round(rmno$ci.ub, 2)`, p = `r round(rmno$pval, 3)`). The publication bias result was similar to the overall meta-analysis (t = `r round(segger1$coefficients[6],3)`, p = `r round(segger1$coefficients[8], 4)`).
+
+## Alternative funnel plots
+Publication bias test results given above. Funnel plots produced here.
+
+### Tongue protrusion only
+
+**Funnel plot 2: Tongue protrusion only.** Funnel plot with only tongue protrusion effects. Points are independent. Effect sizes from Meltzoff & Moore (1977) shown in red.
+
+``` {r funnel plot 2, echo=FALSE, warning=FALSE}
+tgt <- TP # choose dataset
+
+# plot with ggplot
+# modified from sakaluk.wordpress.com
+
+# identify variables for the plot
+estimate = rmTP$b
+se = rmTP$se
+tgt$se <- sqrt(tgt$vi.1)
+tgt$inv <- as.numeric(1/tgt$se)
+
+# create lines for the funnel
+se.seq=seq(0, max(tgt$se), 0.001)
+ll95 = estimate-(1.96*se.seq)
+ul95 = estimate+(1.96*se.seq)
+ll99 = estimate-(3.29*se.seq)
+ul99 = estimate+(3.29*se.seq)
+meanll95 = estimate-(1.96*se)
+meanul95 = estimate+(1.96*se)
+
+# create data frame for plot lines
+dfCI = data.frame(ll95, ul95, ll99, ul99, se.seq, estimate, meanll95, meanul95)
+
+# identify the first published study with red coloured points
+tgt$Meltzoff <- "0" 
+tgt$Meltzoff[tgt$ID.L1=="Meltzoff1977"]="1"
+tgt$Meltzoff <- as.numeric(tgt$Meltzoff)
+
+# create data frame for plot points
+yi <- tgt$yi.1
+sd <- tgt$se
+M <- tgt$Meltzoff
+newdat <- cbind.data.frame(yi,sd,M)
+newdat$M <- as.factor(newdat$M)
+
+# make the plot
+fp = ggplot(aes(x = sd, y = yi), data = newdat) +
+  geom_point(aes(color=M,shape=19), data=newdat) +
+  scale_color_manual(values=c("black", "red")) +
+  scale_shape_identity() +
+  xlab('Standard Error') + ylab('Effect size')+
+  geom_line(aes(x = se.seq, y = ll95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ll99), linetype = 'dashed', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul99), linetype = 'dashed', data = dfCI) +
+  geom_segment(aes(x = min(se.seq), y = estimate, xend = max(se.seq), yend = estimate), data=dfCI) +
+  scale_x_reverse()+
+  coord_flip()+
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+
+fp
+
+````
+
+### Single estimate per independent sample
+**Funnel plot 3: Single estimate per independent sample.** Funnel plot with single average estimate per independent sample. Points are independent. Effect sizes from Meltzoff & Moore (1977) shown in red.
+
+``` {r funnel plot 3, echo=FALSE, warning=FALSE}
+
+tgt <- z # choose dataset
+
+# plot with ggplot
+# modified from sakaluk.wordpress.com
+
+# identify variables for the plot
+estimate = rmz$b
+se = rmz$se
+tgt$inv <- as.numeric(1/tgt$seN)
+
+# create lines for the funnel
+se.seq=seq(0, max(tgt$seN), 0.001)
+ll95 = estimate-(1.96*se.seq)
+ul95 = estimate+(1.96*se.seq)
+ll99 = estimate-(3.29*se.seq)
+ul99 = estimate+(3.29*se.seq)
+meanll95 = estimate-(1.96*se)
+meanul95 = estimate+(1.96*se)
+
+# create data frame for plot lines
+dfCI = data.frame(ll95, ul95, ll99, ul99, se.seq, estimate, meanll95, meanul95)
+
+# identify the first published study with red coloured points
+tgt$Meltzoff <- "0" 
+tgt$Meltzoff[tgt$Paper=="Meltzoff1977_1"]="1"
+tgt$Meltzoff[tgt$Paper=="Meltzoff1977_2"]="1"
+tgt$Meltzoff <- as.numeric(tgt$Meltzoff)
+
+# create data frame for plot points
+yi <- tgt$estimate
+sd <- tgt$seN
+M <- tgt$Meltzoff
+newdat <- cbind.data.frame(yi,sd,M)
+newdat$M <- as.factor(newdat$M)
+
+# make the plot
+fp = ggplot(aes(x = sd, y = yi), data = newdat) +
+  geom_point(aes(color=M,shape=19), data=newdat) +
+  scale_color_manual(values=c("black", "red")) +
+  scale_shape_identity() +
+  xlab('Standard Error') + ylab('Effect size')+
+  geom_line(aes(x = se.seq, y = ll95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ll99), linetype = 'dashed', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul99), linetype = 'dashed', data = dfCI) +
+  geom_segment(aes(x = min(se.seq), y = estimate, xend = max(se.seq), yend = estimate), data=dfCI) +
+  scale_x_reverse()+
+  coord_flip()+
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+
+fp
+
+````
+
+### Results from different ways of calculating publication bias with multilevel data 
+```{r supplementary (calculating bias), echo=FALSE, include=FALSE, warning=FALSE}
+tgt <- dat # choose dataset
+### multilevel random-effects model
+rml <- rma.mv(gi.1, vi.1, random = list(~ 1 | ID.L1, ~ 1 | ID.L2), data=tgt)
+
+# adapted Egger test from Moreno et al 2009
+egger0 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1))
+segger0 <- summary(egger0)
+# adding levels extending the random effect model by adding the extra variance term to the weight (method 1)
+tausq1 <- rml$sigma2[1]
+tausq2 <- rml$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+
+# adding a random effects term to meta-analysis model with variance as a predictor (method 2)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+
+# two-step method fixed and random effects
+egger3 = regtest(rmz, model="lm", predictor="sei", method="FE") # fixed effects
+egger4 = regtest(rmz, model="lm", predictor="sei", method="RE") # random effects
+
+coef<-NULL
+coef$method <- c("Multilevel random effects  model",
+                 "Multilevel extended model",
+                 "Multilevel model using rma.mv",
+                 "Two-step method fixed effects model",
+                 "Two-step method random effects model")
+coef$t <- c(segger0$coefficients[6],
+            segger1$coefficients[6],
+            segger2$zval[2],
+            egger3$zval,
+            egger4$zval)
+coef$p <- c(segger0$coefficients[8],
+            segger1$coefficients[8],
+            segger2$pval[2],
+            egger3$pval,
+            egger4$pval)
+```
+**Table S1.** Results for different ways of calculating publication bias.
+
+```{r supplementary(kable), echo=FALSE, warning=FALSE}
+coef<-as.data.frame(coef)
+kable(coef, digits=3)
+```
