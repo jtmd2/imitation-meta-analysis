@@ -1,0 +1,780 @@
+##### Imitation meta-analysis revised May 2018 #####
+
+##### Preamble #####
+rm(list=ls()) # remove previously loaded items
+setwd("C:\\Users\\Topsy\\Documents\\papers\\imitation") # set working directory
+library(metafor,rmeta,data.table,plyr,ggplot2) # load required packages
+dat <- read.csv("imitation meta revised Oct 2019-clean.csv") # read in data
+
+## Name variables
+# ID variables
+dat$ID.L1 <- as.factor(dat$PaperID) # The ID for the overall paper (Level 1)
+dat$ID.L2 <- as.factor(dat$Study) # The ID for the independent sample (Level 2, may be >1 per paper)
+# Study variables
+dat$First.author <- as.factor(dat$Author) # First author
+dat$Year <- as.numeric(as.character(dat$Year)) # Year of publication
+dat$Age <- as.numeric(dat$Age..days.)  # Average age of neonates, in days
+dat$Gesture <- as.factor(dat$Gesture) # Target gesture
+# Moderators
+dat$pres.time <- as.numeric(dat$Presentation.time) # Presentation time per slice, in seconds
+dat$resp.time <- as.numeric(dat$Response.time) # Response time per slice, in seconds
+dat$exposure <- as.numeric(dat$Total.Exposure.Duration) # Total exposure time, in seconds
+dat$response <- as.numeric(dat$Total.Response.Duration) # Total response time, in seconds
+dat$models <- as.numeric(dat$Number.of.models) # Number of different gesture models the infants were exposed to
+dat$activetime <- as.numeric(dat$Total.active.experiment.time) # Total length of all presentation and response periods combined
+dat$setting <- as.factor(dat$Setting.of.Data.Collection) # Factor with 4 levels: Home, Hospital, University, Not reported
+dat$delivery <- as.factor(dat$Who.Delivers.the.Modelling) # Factor with 5 levels: Experimenter, Mother, Video, Both mother and stranger ("Multiple" in manuscript), and Not reported
+dat$exper <- as.factor(dat$Seen.E.face.before) # Whether the infant has seen the model's face before. Factor with 3 levels: Yes/No/Unclear
+dat$position <- as.factor(dat$Infant.position) # Where the infant was located for testing, description
+dat$positionbin <- as.numeric(dat$Infant.seat) # Binary factor, 1 = infant was in an infant seat, 2 = otherwise
+dat$alert <- as.factor(dat$AlertM) # Factor with 5 levels: Behaviour, Experimenter judge, Looking, Mixture, Not reported
+dat$analysis <- as.factor(dat$Analysis.Method.category) # Factor with 6 levels: ANOVA, Difference score, GLMM, Q test, Signed rank, t-test
+
+mods <- c("pres.time","resp.time","exposure","response","models","activetime","baseline","setting","delivery","exper","position","positionbin","alert","analysis")
+
+# Effect sizes
+dat$yi.1 <- as.numeric(dat$d) # Effect size, may be >1 per independent sample
+dat$vi.1 <- as.numeric(dat$var.d.) # Variance of the effect size from coding sheet
+# using variance of d calculated from N instead of from the effect size calculation, which gives an answer closer to the original study for studies with lots of estimates
+dat$v <- (((dat$N+dat$N)/(dat$N*dat$N))+(dat$yi.1^2/(2*(dat$N+dat$N-2))))*((dat$N+dat$N)/(dat$N+dat$N-2))
+# Hedges' correction for small samples
+dat$J <- (1-(3/((4*(dat$N))-9)))
+dat$g <- dat$yi.1*dat$J
+
+# for analyses, use effect size = dat$g and variance = dat$v
+
+##### Manuscript results #####
+
+#### Main meta-analysis ####
+tgt <- dat # choose dataset
+
+## Multilevel random-effects model
+rml <- rma.mv(g, v, # effect size metric and variance
+              random = list(~ 1 | ID.L1, ~ 1 | ID.L2), # list of random variables
+              data=tgt) # data to use for the model
+rml # give the results of the meta-analysis
+Isq <- 100*(rml$QE-(nrow(tgt)-1))/rml$QE # extended I-squared for multilevel model
+Isq # give the extended I-squared value
+
+
+#### Moderator analysis ####
+
+tgt <- dat # choose dataset
+
+# run the following once per moderator and record the results
+
+a <- rma.mv(g,v, # effect size metric and variance
+            mods=~eval(parse(text = mods[14])), # specify moderator (CHANGE THIS ONE TO GET RESULTS FOR OTHER MODERATORS)
+            random = list(~ 1 | ID.L1, ~ 1 | ID.L2), # specify random variables
+            data = tgt) # dataset
+a # get results of the moderator analysis
+
+table(tgt$analysis) # get k (number of effect sizes) for each category if moderator is categorical
+
+#### Publication bias ####
+
+tgt <- dat # choose dataset
+
+# adding a random effects term to meta-analysis model with variance as a predictor (method 2)
+egger2 = rma.mv(g,v, mod = v, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+segger2
+
+##### Supplementary material #####
+
+#### Supplementary 2-step meta-analysis with a single estimate per independent sample ####
+# 1. get a single estimate per independent sample
+z <- as.data.frame(y) # get estimates from previous for loop
+z$Name <- revalue(z$Paper, 
+                  c("Anisfeld2001_1"="Anisfeld et al. 2001", 
+                    "Coulon2013_1"="Coulon et al. 2013 Condition 1",
+                    "Coulon2013_2"="Coulon et al. 2013 Condition 2",
+                    "Field1982_1"="Field et al. 1982",
+                    "Field1983_1"="Field et al. 1983",
+                    "Fontaine1984_1"="Fontaine 1984",
+                    "Heimann1985_1"="Heimann & Schaller 1985",
+                    "Heimann1989_1"="Heimann et al. 1989 Time 1",
+                    "Heimann1989_2"="Heimann et al. 1989 Time 2",   
+                    "Heimann1998_1"="Heimann 1998",
+                    "Kennedy2017_1"="Kennedy-Costantini 2017",
+                    "Koepke1983_1"="Koepke et al. 1983",  
+                    "Legerstee1991_1"="Legerstee 1991",
+                    "Sho0000_1"="Sho et al. unpublished",
+                    "McKenzie1983_1"="McKenzie & Over 1983",
+                    "Meltzoff1977_1"="Meltzoff & Moore 1977 Experiment 1",
+                    "Meltzoff1977_2"="Meltzoff & Moore 1977 Experiment 2",
+                    "Meltzoff1983_1"="Meltzoff & Moore 1983",
+                    "Meltzoff1989_1"="Meltzoff & Moore 1989",
+                    "Meltzoff1992_1"="Meltzoff & Moore 1992",
+                    "Meltzoff1994_1"="Meltzoff & Moore 1994",
+                    "Nagy2007_1"="Nagy et al. 2007",
+                    "Nagy2014_1"="Nagy et al. 2014 Left condition",
+                    "Nagy2014_2"="Nagy et al. 2014 Right condition",
+                    "Nagy2014_3"="Nagy et al. 2014 Both condition",
+                    "Oostenbroek2016_1"="Oostenbroek et al. 2016 1 week   old",
+                    "Oostenbroek2016_2"="Oostenbroek et al. 2016 3 weeks old",
+                    "Oostenbroek2016_3"="Oostenbroek et al. 2016 6 weeks old",
+                    "Reissland1988_1"= "Reissland 1988",
+                    "Soussignan2011_1"="Soussignan et al. 2011",
+                    "Ullstadius1998_1"="Ullstadius 1998"))
+z$Year <- readr::parse_number(z$Paper) # get the publication years so that samples can be ordered chronologically
+z$Year[z$Year==0000]<-2014 # unpublished study has 0000 in the study ID but data were collected in 2014
+z$estimate <- as.numeric((as.character(z$estimate)))
+z$N <- as.numeric((as.character(z$N)))
+# 2. Run the meta-analysis with the independent estimates
+tgt <- z # choose dataset
+rmz <- rma(estimate,sei=se,data=z) # use simpler rma syntax
+# Check publication bias results for this method
+tgt$vi <- tgt$se^2
+egger1 <- lm(tgt$estimate ~ tgt$vi, weights=1/(tgt$vi)) # linear model implementation
+segger1 <- summary(egger1)
+egger2 = regtest(rmz, model="lm", predictor="sei") # implementation from metafor package
+segger2 <- summary(egger2)
+
+#### Supplementary results for additional moderators ####
+
+# Age as a continuous moderator
+tgt <- dat # choose dataset
+Age <- rma.mv(gi.1,vi.1,
+              mods=Age, 
+              random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+              data=tgt)
+Age
+
+# Facial and non-facial gestures 
+tgt <- dat # choose dataset
+# code a new variable for which 1 = facial gesture and 0 = non-facial gesture
+tgt$face <- revalue(tgt$Gesture, 
+                    c("Arm raising"="0", 
+                      "Cheek swelling"="0",
+                      "CLICK sound"="1",
+                      "EEE sound"="1",
+                      "Eye closing"="1",
+                      "Finger movement"="0",
+                      "Finger movement partial"="0",
+                      "Finger protrusion"="0",
+                      "Grasping"="0",
+                      "Hand movement"="0",
+                      "Hand opening"="0",
+                      "Hand to mouth"="0",
+                      "Happy expression (wide lips)"="1",
+                      "Happy face"="1",
+                      "Head movement"="0",
+                      "Index finger point"="0",
+                      "Lip protrusion"="1",
+                      "Lip spreading"="1",
+                      "MMM sound"="1",
+                      "Mouth opening"="1",
+                      "Partial mouth opening"="1",
+                      "Partial tongue protrusion"="1",
+                      "Pursed lips"="1",
+                      "Sad expression (pouting lips)"="1",
+                      "Sad expression (furrowed brow)"="1",
+                      "Sad face"="1",
+                      "Sequential finger movement"="0",
+                      "Surprised expression (wide open mouth)"="1",
+                      "Surprised expression (widened eyes)"="1",
+                      "Tongue protrusion"="1",
+                      "Widened lips"="1"))
+tgt$face[tgt$face=="0"] <- 0
+tgt$face[tgt$face=="1"] <- 1
+tgt$face2 <- as.numeric(tgt$face)
+# run the meta-analysis
+faces <- rma.mv(gi.1, vi.1, random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+                mods=face2,
+                data=tgt)
+# publication bias
+tausq1 <- faces$sigma2[1]
+tausq2 <- faces$sigma2[2] 
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+
+# Imputed data
+# code a new variable for which 1 = imputed data and 0 = no imputed data
+# values taken from original coding sheet
+tgt$imput <- revalue(tgt$ID.L1, 
+                     c("Anisfeld2001"="0",
+                       "Coulon2013"="0",
+                       "Field1982"="0",
+                       "Field1983"="0",
+                       "Fontaine1984"="0",
+                       "Heimann1985"="0",
+                       "Heimann1989"="0",
+                       "Heimann1998"="0",
+                       "Kennedy2017"="0",
+                       "Koepke1983"="1",
+                       "Legerstee1991"="1",
+                       "Sho0000"="0",
+                       "McKenzie1983"="1",
+                       "Meltzoff1977"="1",
+                       "Meltzoff1983"="1",
+                       "Meltzoff1989"="0",
+                       "Meltzoff1992"="0",
+                       "Meltzoff1994"="0",
+                       "Nagy2007"="0",
+                       "Nagy2014"="0",
+                       "Oostenbroek2016"="0",
+                       "Reissland1988"="0",
+                       "Soussignan2011"="1",
+                       "Ullstadius1998"="1"))
+
+tgt$imput <- as.numeric(tgt$imput)
+# meta-analysis
+imput <- rma.mv(gi.1, vi.1, random = list(~ 1 | ID.L1, ~ 1 | ID.L2),
+                mods=imput, 
+                data=tgt)
+# publication bias
+tausq1 <- imput$sigma2[1]
+tausq2 <- imput$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+
+# Dominant study tests
+q <- leave1out(rmz)
+rml <- rma.mv(gi.1, vi.1, random = list(~ 1 | ID.L1, ~ 1 | ID.L2), data=dat)
+# excluding Oostenbroek et al. (2016)
+tgt <- dat[dat$ID.L1 != "Oostenbroek 2016",] # choose dataset
+# meta-analysis
+rmno <- rma.mv(gi.1,vi.1,
+               random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+               data=TP)
+# publication bias
+tausq1 <- rmno$sigma2[1]
+tausq2 <- rmno$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+
+#### Supplementary analysis of tongue protrusion studies only ####
+
+## all tongue protrusion studies
+TP <- dat[dat$Gesture=="Tongue protrusion",] # create new dataset with only TP effects
+tgt <- TP # choose dataset
+# run the meta-analysis (includes multiple levels, but few studies report >1 effect size for tongue protrusion)
+rmTP <- rma.mv(gi.1,vi.1,
+               random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+               data=TP)
+# publication bias
+tausq1 <- rmTP$sigma2[1]
+tausq2 <- rmTP$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1) # using Method 1
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2) # using Method 2
+
+## tongue protrusion compared to baseline only
+tgt <- TP[TP$Baseline==1,] # create a dataset with only TP vs baseline studies
+# run the meta-analysis
+rmTPB <- rma.mv(gi.1,vi.1,
+                random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+                data=tgt)
+# publication bias
+tausq1 <- rmTPB$sigma2[1]
+tausq2 <- rmTPB$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+
+## tongue protrusion compared to mouth opening only
+tgt <- TP[TP$Baseline==0,] # create a dataset with only TP vs mouth opening studies
+# run the meta-analysis
+rmTPA <- rma.mv(gi.1,vi.1,
+                random = list(~ 1 | ID.L1, ~ 1 | ID.L2), 
+                data=tgt)
+# publication bias
+tausq1 <- rmTPA$sigma2[1]
+tausq2 <- rmTPA$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+
+#### Supplementary multilevel calculation methods for publication bias ####
+# adapted Egger test from Moreno et al 2009
+egger0 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1))
+segger0 <- summary(egger0)
+# adding levels extending the random effect model by adding the extra variance term to the weight (method 1)
+tausq1 <- rml$sigma2[1]
+tausq2 <- rml$sigma2[2]
+egger1 <- lm(tgt$yi.1 ~ tgt$vi.1, weights=1/(tgt$vi.1+tausq1+tausq2))
+segger1 <- summary(egger1)
+# adding a random effects term to meta-analysis model with variance as a predictor (method 2)
+egger2 = rma.mv(gi.1,vi.1, mod = vi.1, random = ~1|PaperID, data = tgt)
+segger2 <- summary(egger2)
+# two-step method fixed and random effects
+egger3 = regtest(rmz, model="lm", predictor="sei", method="FE") # fixed effects
+egger4 = regtest(rmz, model="lm", predictor="sei", method="RE") # random effects
+# Table S1. Results for different ways of calculating publication bias
+coef<-NULL
+coef$method <- c("Multilevel random effects  model",
+                 "Multilevel extended model",
+                 "Multilevel model using rma.mv",
+                 "Two-step method fixed effects model",
+                 "Two-step method random effects model")
+coef$t <- c(segger0$coefficients[6],
+            segger1$coefficients[6],
+            segger2$zval[2],
+            egger3$zval,
+            egger4$zval)
+coef$p <- c(segger0$coefficients[8],
+            segger1$coefficients[8],
+            segger2$pval[2],
+            egger3$pval,
+            egger4$pval)
+table(coef, digits=3)
+
+### Sensitivity analysis: Oostenbroek et al. 2016 as "yes" to "has infant seen model's face before?"
+tgt$exper[tgt$PaperID=="Oostenbroek2016"] <- "Yes"
+tgt$experbin[tgt$PaperID=="Oostenbroek2016"] <- 1
+
+### Leave-one-out analyses
+levels(dat$PaperID)
+dat$leave <- 0
+dat$leave[dat$PaperID=="Ullstadius1998"] <- 1 # Change this for each study ID in the list
+a <- rma.mv(g,v, # effect size metric and variance
+            mods=~leave, # specify moderator 
+            random = list(~ 1 | ID.L1, ~ 1 | ID.L2), # specify random variables
+            data = dat) # dataset
+a # get results of the moderator analysis
+table(dat$leave) # get k (number of effect sizes) for each category 
+
+##### Plots #####
+
+#### Forest plot 1: Single estimate per independent sample ####
+
+# First get single estimate per independent sample 
+tgt <- dat
+levels(tgt$ID.L2) # number of independent samples
+IDs <- unique(tgt$ID.L2) # list of unique IDs (identifiers for each sample)
+k <- length(IDs) # number of independent samples
+y <- c("Paper","k","estimate","se","p","N") # create an empty list with headings
+# for loop fills the list with required information for each sample
+for(i in 1:k){
+  temp <- tgt[tgt$ID.L2==IDs[i],]
+  a <- rma(g, v, data=temp)
+  b <- c(as.character(temp$ID.L2[1]),a$k,a$b,a$se,a$pval,as.character(temp$N[1]))
+  y <- rbind(y, b)
+}  
+# tidy the dataset
+colnames(y) <- as.character(unlist(y[1,])) 
+y = y[-1, ]
+
+# optional: write csv with new estimates
+# write.csv(y, "Imitation meta-analysis combined estimates.csv")
+
+# get into plotting dataframe
+z <- as.data.frame(y)
+z$Name <- revalue(z$Paper, 
+                  c("Anisfeld2001_1"="Anisfeld et al. 2001", 
+                    "Coulon2013_1"="Coulon et al. 2013 Condition 1",
+                    "Coulon2013_2"="Coulon et al. 2013 Condition 2",
+                    "Field1982_1"="Field et al. 1982",
+                    "Field1983_1"="Field et al. 1983",
+                    "Fontaine1984_1"="Fontaine 1984",
+                    "Heimann1985_1"="Heimann & Schaller 1985",
+                    "Heimann1989_1"="Heimann et al. 1989 Time 1",
+                    "Heimann1989_2"="Heimann et al. 1989 Time 2",   
+                    "Heimann1998_1"="Heimann 1998",
+                    "Kennedy2017_1"="Kennedy-Costantini 2017",
+                    "Koepke1983_1"="Koepke et al. 1983",  
+                    "Legerstee1991_1"="Legerstee 1991",
+                    "Sho0000_1"="Sho et al. unpublished",
+                    "McKenzie1983_1"="McKenzie & Over 1983",
+                    "Meltzoff1977_1"="Meltzoff & Moore 1977 Experiment 1",
+                    "Meltzoff1977_2"="Meltzoff & Moore 1977 Experiment 2",
+                    "Meltzoff1983_1"="Meltzoff & Moore 1983",
+                    "Meltzoff1989_1"="Meltzoff & Moore 1989",
+                    "Meltzoff1992_1"="Meltzoff & Moore 1992",
+                    "Meltzoff1994_1"="Meltzoff & Moore 1994",
+                    "Nagy2007_1"="Nagy et al. 2007",
+                    "Nagy2014_1"="Nagy et al. 2014 Left condition",
+                    "Nagy2014_2"="Nagy et al. 2014 Right condition",
+                    "Nagy2014_3"="Nagy et al. 2014 Both condition",
+                    "Oostenbroek2016_1"="Oostenbroek et al. 2016 1 week   old",
+                    "Oostenbroek2016_2"="Oostenbroek et al. 2016 3 weeks old",
+                    "Oostenbroek2016_3"="Oostenbroek et al. 2016 6 weeks old",
+                    "Reissland1988_1"= "Reissland 1988",
+                    "Soussignan2011_1"="Soussignan et al. 2011",
+                    "Ullstadius1998_1"="Ullstadius 1998",
+                    "Barbosa2017_1"="Barbosa 2017",
+                    "Heimann2019_1"="Heimann & Tjus 2019"))
+
+z$Year <- readr::parse_number(as.character(z$Paper)) # get the publication years so that samples can be ordered chronologically
+z$Year[z$Year==0000]<-2014 # unpublished study has 0000 in the study ID but data were collected in 2014
+z$estimate <- as.numeric((as.character(z$estimate)))
+z$N <- as.numeric((as.character(z$N)))
+z$v <- (((z$N+z$N)/(z$N*z$N))+(z$estimate^2/(2*(z$N+z$N-2))))*((z$N+z$N)/(z$N+z$N-2))
+
+# create confidence intervals
+z$g <- z$estimate
+z$seN <- sqrt(z$v)
+z$lower <- z$g - (1.96*z$seN)
+z$upper <- z$g + (1.96*z$seN)
+
+# order the dataset by reverse year, keeping estimates from the same study together
+setDT(z)
+z$Name <- as.character(z$Name)
+z$Gesture <- as.character(z$Gesture)
+setkey(z,Year,Name,Gesture)
+z$ord <- as.numeric(row.names(z))
+
+# make the forest plot
+fp <- ggplot(data=z, ( # choose data
+  aes(x=reorder(Name, -ord), # order points
+      y=g, # y-axis is the effect size
+      ymin=lower, # add confidence intervals to plot
+      ymax=upper))) + # add confidence intervals to plot
+  geom_pointrange() + # specify type of plot (points)
+  geom_hline(yintercept=rml$b, lty=2) +  # add a dotted line at x=1 after flip
+  geom_hline(yintercept=0, lty=2, col="red") +  # add a dotted line at x=1 after flip
+  coord_flip() +  # flip coordinates (puts labels on y axis)
+  xlab("Study") + ylab("Effect size (95% CI)") +
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+print(fp)
+
+
+#### Forest plot 2: Full forest plot including all gestures (points are not independent) ####
+
+# get into plotting dataframe
+tgt <- dat # choose full dataset
+z <- as.data.frame(tgt)
+z$Name <- revalue(z$ID.L2, 
+                  c("Anisfeld2001_1"="Anisfeld et al. 2001", 
+                    "Coulon2013_1"="Coulon et al. 2013 Condition 1",
+                    "Coulon2013_2"="Coulon et al. 2013 Condition 2",
+                    "Field1982_1"="Field et al. 1982",
+                    "Field1983_1"="Field et al. 1983",
+                    "Fontaine1984_1"="Fontaine 1984",
+                    "Heimann1985_1"="Heimann & Schaller 1985",
+                    "Heimann1989_1"="Heimann et al. 1989 Time 1",
+                    "Heimann1989_2"="Heimann et al. 1989 Time 2",   
+                    "Heimann1998_1"="Heimann 1998",
+                    "Kennedy2017_1"="Kennedy-Costantini 2017",
+                    "Koepke1983_1"="Koepke et al. 1983",  
+                    "Legerstee1991_1"="Legerstee 1991",
+                    "Sho0000_1"="Sho et al. unpublished",
+                    "McKenzie1983_1"="McKenzie & Over 1983",
+                    "Meltzoff1977_1"="Meltzoff & Moore 1977 Experiment 1",
+                    "Meltzoff1977_2"="Meltzoff & Moore 1977 Experiment 2",
+                    "Meltzoff1983_1"="Meltzoff & Moore 1983",
+                    "Meltzoff1989_1"="Meltzoff & Moore 1989",
+                    "Meltzoff1992_1"="Meltzoff & Moore 1992",
+                    "Meltzoff1994_1"="Meltzoff & Moore 1994",
+                    "Nagy2007_1"="Nagy et al. 2007",
+                    "Nagy2014_1"="Nagy et al. 2014 Left condition",
+                    "Nagy2014_2"="Nagy et al. 2014 Right condition",
+                    "Nagy2014_3"="Nagy et al. 2014 Both condition",
+                    "Oostenbroek2016_1"="Oostenbroek et al. 2016 1 week   old",
+                    "Oostenbroek2016_2"="Oostenbroek et al. 2016 3 weeks old",
+                    "Oostenbroek2016_3"="Oostenbroek et al. 2016 6 weeks old",
+                    "Reissland1988_1"= "Reissland 1988",
+                    "Soussignan2011_1"="Soussignan et al. 2011",
+                    "Ullstadius1998_1"="Ullstadius 1998",
+                    "Barbosa2017_1"="Barbosa 2017",
+                    "Heimann2019_1"="Heimann & Tjus 2019"))
+
+z$Year <- readr::parse_number(as.character(z$ID.L2)) # get the publication years so that samples can be ordered chronologically
+z$Year[z$Year==0000]<-2014 # unpublished study has 0000 in the study ID but data were collected in 2014
+
+# create confidence intervals
+z$seN <- sqrt(z$v)
+z$lower <- z$g - (1.96*z$seN)
+z$upper <- z$g + (1.96*z$seN)
+
+# order data points by year, study, and gesture
+setDT(z)
+z$Name <- as.character(z$Name)
+z$Gesture <- as.character(z$Gesture)
+setkey(z,Year,Name,Gesture)
+z$ord <- as.numeric(row.names(z))
+
+# identify tongue protrusion effects
+z$TP <- 0
+z$TP[z$Gesture=="Tongue protrusion"] <- 1
+
+# make the forest plot
+fp <- ggplot(data=z, (
+  aes(x=reorder(Name,-ord),
+      y=g,
+      ymin=lower,
+      ymax=upper,
+#      color=TP,
+      palette))) +
+  geom_pointrange() + 
+  geom_hline(yintercept=rml$b, lty=2) +  # add a dotted line at x=1 after flip
+  geom_hline(yintercept=0, lty=2, col="red") +  # add a dotted line at x=1 after flip
+  coord_flip() +  # flip coordinates (puts labels on y axis)
+  xlab("Study") + ylab("Effect size (95% CI)") +
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+print(fp)
+
+#### Supplementary funnel plots ####
+
+## Funnel plot 2: Tongue protrusion only
+tgt <- TP # choose dataset
+# identify variables for the plot
+estimate = rmTP$b
+se = rmTP$se
+tgt$se <- sqrt(tgt$vi.1)
+tgt$inv <- as.numeric(1/tgt$se)
+# create lines for the funnel
+se.seq=seq(0, max(tgt$se), 0.001)
+ll95 = estimate-(1.96*se.seq)
+ul95 = estimate+(1.96*se.seq)
+ll99 = estimate-(3.29*se.seq)
+ul99 = estimate+(3.29*se.seq)
+meanll95 = estimate-(1.96*se)
+meanul95 = estimate+(1.96*se)
+# create data frame for plot lines
+dfCI = data.frame(ll95, ul95, ll99, ul99, se.seq, estimate, meanll95, meanul95)
+# identify the first published study with red coloured points
+tgt$Meltzoff <- "0" 
+tgt$Meltzoff[tgt$ID.L1=="Meltzoff1977"]="1"
+tgt$Meltzoff <- as.numeric(tgt$Meltzoff)
+# create data frame for plot points
+yi <- tgt$yi.1
+sd <- tgt$se
+M <- tgt$Meltzoff
+newdat <- cbind.data.frame(yi,sd,M)
+newdat$M <- as.factor(newdat$M)
+# make the plot
+fp = ggplot(aes(x = sd, y = yi), data = newdat) +
+  geom_point(aes(color=M,shape=19), data=newdat) +
+  scale_color_manual(values=c("black", "red")) +
+  scale_shape_identity() +
+  xlab('Standard Error') + ylab('Effect size')+
+  geom_line(aes(x = se.seq, y = ll95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ll99), linetype = 'dashed', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul99), linetype = 'dashed', data = dfCI) +
+  geom_segment(aes(x = min(se.seq), y = estimate, xend = max(se.seq), yend = estimate), data=dfCI) +
+  scale_x_reverse()+
+  coord_flip()+
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+fp
+
+## Funnel plot 3: Single estimate per independent sample
+tgt <- z # choose dataset - check that this refers to result of for loop and not total dataset
+# identify variables for the plot
+estimate = rmz$b
+se = rmz$se
+tgt$inv <- as.numeric(1/tgt$se)
+# create lines for the funnel
+se.seq=seq(0, max(tgt$se), 0.001)
+ll95 = estimate-(1.96*se.seq)
+ul95 = estimate+(1.96*se.seq)
+ll99 = estimate-(3.29*se.seq)
+ul99 = estimate+(3.29*se.seq)
+meanll95 = estimate-(1.96*se)
+meanul95 = estimate+(1.96*se)
+# create data frame for plot lines
+dfCI = data.frame(ll95, ul95, ll99, ul99, se.seq, estimate, meanll95, meanul95)
+# identify the first published study with red coloured points
+tgt$Meltzoff <- "0" 
+tgt$Meltzoff[tgt$Paper=="Meltzoff1977_1"]="1"
+tgt$Meltzoff[tgt$Paper=="Meltzoff1977_2"]="1"
+tgt$Meltzoff <- as.numeric(tgt$Meltzoff)
+# create data frame for plot points
+yi <- tgt$estimate
+sd <- tgt$se
+M <- tgt$Meltzoff
+newdat <- cbind.data.frame(yi,sd,M)
+newdat$M <- as.factor(newdat$M)
+# make the plot
+fp = ggplot(aes(x = sd, y = yi), data = newdat) +
+  geom_point(aes(color=M,shape=19), data=newdat) +
+  scale_color_manual(values=c("black", "red")) +
+  scale_shape_identity() +
+  xlab('Standard Error') + ylab('Effect size')+
+  geom_line(aes(x = se.seq, y = ll95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ll99), linetype = 'dashed', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul99), linetype = 'dashed', data = dfCI) +
+  geom_segment(aes(x = min(se.seq), y = estimate, xend = max(se.seq), yend = estimate), data=dfCI) +
+  scale_x_reverse()+
+  coord_flip()+
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+fp
+
+### Funnel plot
+
+tgt <- dat # choose dataset
+
+# plot with ggplot
+# modified from sakaluk.wordpress.com
+
+# identify variables for the plot
+estimate = rml$b # get overall meta-analysis effect size from the model (rml)
+se = rml$se # get standard error of the overall meta-analysis effect size
+tgt$se <- sqrt(tgt$v) # to match forest, this should be based on N
+
+# create lines for the funnel
+se.seq=seq(0, max(tgt$se), 0.001)
+ll95 = estimate-(1.96*se.seq)
+ul95 = estimate+(1.96*se.seq)
+ll99 = estimate-(3.29*se.seq)
+ul99 = estimate+(3.29*se.seq)
+meanll95 = estimate-(1.96*se)
+meanul95 = estimate+(1.96*se)
+
+# create data frame for plot lines
+dfCI = data.frame(ll95, ul95, ll99, ul99, se.seq, estimate, meanll95, meanul95)
+
+# identify the first published study
+tgt$Meltzoff <- "0" 
+tgt$Meltzoff[tgt$ID.L1=="Meltzoff1977"]="1"
+tgt$Meltzoff <- as.numeric(tgt$Meltzoff)
+
+# create data frame for plot points
+yi <- tgt$yi.1
+sd <- tgt$se
+M <- tgt$Meltzoff
+newdat <- cbind.data.frame(yi,sd,M)
+newdat$M <- as.factor(newdat$M)
+sub <- newdat[newdat$M==1,]
+
+# make the plot
+fp = ggplot(aes(x = sd, y = yi), data = newdat) +
+  geom_point(aes(fill=M,shape=M), data=newdat) +
+  geom_point(aes(x = sd, y = yi), data = sub) +
+  geom_point(shape=1, size=6, data = sub) +
+  xlab('Standard Error') + ylab('Effect size')+
+  geom_line(aes(x = se.seq, y = ll95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ll99), linetype = 'dashed', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul99), linetype = 'dashed', data = dfCI) +
+  geom_segment(aes(x = min(se.seq), y = estimate, xend = max(se.seq), yend = estimate), data=dfCI) +
+  scale_x_reverse()+
+  coord_flip()+
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+
+fp
+
+
+#### Analysis of research group ####
+
+tgt <- dat # choose dataset
+
+# code research group
+table(tgt$PaperID)
+tgt$Research_group <- NULL # create new variable for research group
+tgt$Research_group[tgt$PaperID=="Anisfeld2001"] <- "Anisfeld"
+tgt$Research_group[tgt$PaperID=="Barbosa2017"] <- "Nicoladis" #PhD supervisor Elena Nicoladis
+tgt$Research_group[tgt$PaperID=="Coulon2013"] <- "Coulon"
+tgt$Research_group[tgt$PaperID=="Field1982"] <- "Field"
+tgt$Research_group[tgt$PaperID=="Field1983"] <- "Field"
+tgt$Research_group[tgt$PaperID=="Fontaine1984"] <- "Fontaine"
+tgt$Research_group[tgt$PaperID=="Heimann1985"] <- "Heimann"
+tgt$Research_group[tgt$PaperID=="Heimann1989"] <- "Heimann"
+tgt$Research_group[tgt$PaperID=="Heimann1998"] <- "Heimann"
+tgt$Research_group[tgt$PaperID=="Heimann2019"] <- "Heimann"
+tgt$Research_group[tgt$PaperID=="Kennedy2017"] <- "Slaughter"
+tgt$Research_group[tgt$PaperID=="Koepke1983"] <- "Koepke"
+tgt$Research_group[tgt$PaperID=="Legerstee1991"] <- "Legerstee"
+tgt$Research_group[tgt$PaperID=="McKenzie1983"] <- "McKenzie"
+tgt$Research_group[tgt$PaperID=="Meltzoff1977"] <- "Meltzoff"
+tgt$Research_group[tgt$PaperID=="Meltzoff1983"] <- "Meltzoff"
+tgt$Research_group[tgt$PaperID=="Meltzoff1989"] <- "Meltzoff"
+tgt$Research_group[tgt$PaperID=="Meltzoff1992"] <- "Meltzoff"
+tgt$Research_group[tgt$PaperID=="Meltzoff1994"] <- "Meltzoff"
+tgt$Research_group[tgt$PaperID=="Nagy2007"] <- "Nagy"
+tgt$Research_group[tgt$PaperID=="Nagy2014"] <- "Nagy"
+tgt$Research_group[tgt$PaperID=="Oostenbroek2016"] <- "Slaughter"
+tgt$Research_group[tgt$PaperID=="Reissland1988"] <- "Reissland"
+tgt$Research_group[tgt$PaperID=="Sho0000"] <- "Sho"
+tgt$Research_group[tgt$PaperID=="Soussignan2011"] <- "Soussignan"
+tgt$Research_group[tgt$PaperID=="Ullstadius1998"] <- "Ullstadius"
+
+table(tgt$Research_group) # get k (number of effect sizes) for each category
+
+a <- rma.mv(g,v, # effect size metric and variance
+            mods=~Research_group, # specify moderator
+            random = list(~ 1 | ID.L1, ~ 1 | ID.L2), # specify random variables
+            data = tgt) # dataset
+a # get results of the moderator analysis
+
+
+# plots 
+z <- tgt
+
+z$Year <- readr::parse_number(as.character(z$Paper)) # get the publication years so that samples can be ordered chronologically
+z$Year[z$Year==0000]<-2014 # unpublished study has 0000 in the study ID but data were collected in 2014
+z$estimate <- as.numeric((as.character(z$estimate)))
+z$N <- as.numeric((as.character(z$N)))
+z$v <- (((z$N+z$N)/(z$N*z$N))+(z$estimate^2/(2*(z$N+z$N-2))))*((z$N+z$N)/(z$N+z$N-2))
+
+# create data frame for plot points
+yi <- tgt$yi.1
+sd <- tgt$se
+M <- tgt$Meltzoff
+newdat <- cbind.data.frame(yi,sd,M)
+newdat$M <- as.factor(newdat$M)
+sub <- newdat[newdat$M==1,]
+
+# make the plot
+fp = ggplot(aes(x = sd, y = yi), data = newdat) +
+  geom_point(aes(fill=M,shape=M), data=newdat) +
+  geom_point(aes(x = sd, y = yi), data = sub) +
+  geom_point(shape=1, size=6, data = sub) +
+  xlab('Standard Error') + ylab('Effect size')+
+  geom_line(aes(x = se.seq, y = ll95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul95), linetype = 'dotted', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ll99), linetype = 'dashed', data = dfCI) +
+  geom_line(aes(x = se.seq, y = ul99), linetype = 'dashed', data = dfCI) +
+  geom_segment(aes(x = min(se.seq), y = estimate, xend = max(se.seq), yend = estimate), data=dfCI) +
+  scale_x_reverse()+
+  coord_flip()+
+  theme_bw() +
+  theme(panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.border=element_blank(),
+        axis.line=element_line(),
+        legend.position='none') # APA format
+
+fp
+
+
+
+
+### Leave-one-out analyses for research group
+table(tgt$Research_group)
+tgt$leave <- 0
+tgt$leave[tgt$Research_group=="Meltzoff"] <- 1 # Change this for each study ID in the list
+a <- rma.mv(g,v, # effect size metric and variance
+            mods=~leave, # specify moderator 
+            random = list(~ 1 | ID.L1, ~ 1 | ID.L2), # specify random variables
+            data = tgt) # dataset
+a # get results of the moderator analysis
+table(tgt$leave) # get k (number of effect sizes) for each category 
+
